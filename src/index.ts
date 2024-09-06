@@ -281,20 +281,22 @@ app.delete("/product/:id", async (req: Request, res: Response) => {
 app.post("/cart/add", async (req: Request, res: Response) => {
   const { userId, productId, quantity } = req.body;
 
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid userId format" });
+  }
+  
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    return res.status(400).json({ message: "Invalid productId format" });
+  }
   try {
-    // Convert userId and productId to ObjectId
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-const productObjectId = new mongoose.Types.ObjectId(productId);
-
-
-    let cart = await Cart.findOne({ userId: userObjectId });
-
+    let cart = await Cart.findOne({ userId });
     console.log(cart, "gio hang");
 
+    
     if (cart) {
-      // If cart exists for the user, update the cart
+      
       const productIndex = cart.items.findIndex(
-        (p) => p.productId.toString() === productObjectId.toString()
+        (p) => p.productId.toString() === productId
       );
 
       if (productIndex > -1) {
@@ -302,54 +304,57 @@ const productObjectId = new mongoose.Types.ObjectId(productId);
         productItem.quantity += quantity;
         cart.items[productIndex] = productItem;
       } else {
-        cart.items.push({ productId: productObjectId as mongoose.Types.ObjectId, quantity });
+        cart.items.push({ productId, quantity });
       }
 
-      cart = await cart.save();
+     cart = await cart.save();
       return res.status(201).json(cart);
     } else {
       // If no cart exists, create a new cart
       const newCart = await Cart.create({
-        userId: userObjectId,
-        items: [{ productId: productObjectId, quantity }],
+        userId,
+        items: [{ productId, quantity }],
       });
 
       console.log(newCart, "gio hang moi");
-
+      
       return res.status(201).json(newCart);
     }
+    
+    
+    
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error adding to cart" });
   }
 });
 
-// app.post("/cart/remove", async (req: Request, res: Response) => {
-//   try {
-//     const { userId, productId } = req.body;
-//     const cart = await Cart.findOne({ user: userId });
+app.post("/cart/remove", async (req: Request, res: Response) => {
+  try {
+    const { userId, productId } = req.body;
+    const cart = await Cart.findOne({ user: userId });
     
-//     if (!cart) {
-//       return res.status(404).json({ message: "Cart not found" });
-//     }
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
 
-//     // Remove the product from the cart's items array
-//     cart.items = cart.items.filter(item => item.product.toString() !== productId);
+    // Remove the product from the cart's items array
+    cart.items = cart.items.filter(item => item.productId.toString() !== productId);
 
-//     await cart.save();
+    await cart.save();
 
-//     res.json({ message: "Product removed from cart", cart });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: "Internal server error" });
-//   }
-// });
+    res.json({ message: "Product removed from cart", cart });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 app.get("/cart/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`Fetching cart for userId: ${id}`);
-    const giohang = await Cart.findOne({ userId: id }).populate("items.product");
+    const giohang = await Cart.findOne({ userId: id }).populate("items");
     console.log(`Cart fetched:`, giohang);
 
     if (!giohang) {
