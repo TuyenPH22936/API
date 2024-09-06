@@ -282,12 +282,19 @@ app.post("/cart/add", async (req: Request, res: Response) => {
   const { userId, productId, quantity } = req.body;
 
   try {
-    let cart = await Cart.findOne({ userId });
+    // Convert userId and productId to ObjectId
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+const productObjectId = new mongoose.Types.ObjectId(productId);
+
+
+    let cart = await Cart.findOne({ userId: userObjectId });
+
     console.log(cart, "gio hang");
+
     if (cart) {
       // If cart exists for the user, update the cart
       const productIndex = cart.items.findIndex(
-        (p) => p.productId.toString() === productId
+        (p) => p.productId.toString() === productObjectId.toString()
       );
 
       if (productIndex > -1) {
@@ -295,25 +302,22 @@ app.post("/cart/add", async (req: Request, res: Response) => {
         productItem.quantity += quantity;
         cart.items[productIndex] = productItem;
       } else {
-        cart.items.push({ productId, quantity });
+        cart.items.push({ productId: productObjectId as mongoose.Types.ObjectId, quantity });
       }
 
-     cart = await cart.save();
+      cart = await cart.save();
       return res.status(201).json(cart);
     } else {
       // If no cart exists, create a new cart
       const newCart = await Cart.create({
-        userId,
-        items: [{ productId, quantity }],
+        userId: userObjectId,
+        items: [{ productId: productObjectId, quantity }],
       });
 
       console.log(newCart, "gio hang moi");
-      
+
       return res.status(201).json(newCart);
     }
-
-    
-    
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error adding to cart" });
