@@ -338,7 +338,6 @@ app.post("/cart/remove", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Cart not found" });
     }
 
-    // Remove the product from the cart's items array
     cart.items = cart.items.filter(item => item.productId.toString() !== productId);
 
     await cart.save();
