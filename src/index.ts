@@ -10,7 +10,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import category from "./danhmuc";
-import Cart, {ICart} from  "./cart"
+import Cart, { ICart } from "./cart";
 import user from "./user";
 var cors = require("cors");
 const fs = require("fs");
@@ -67,9 +67,11 @@ app.post("/login", async (req: Request, res: Response) => {
     });
     res.json({
       info: email,
+      id: user._id,
       token: token,
       expiresIn: process.env.EXPIRES_TOKEN,
     });
+    console.log(user._id, "id user");
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error logging in" });
@@ -140,13 +142,11 @@ app.post("/product/add", async (req: Request, res: Response) => {
   try {
     const { name, price, img, categoryID } = req.body;
     console.log(categoryID);
-  
+
     // console.log("Request Body:", req.body);
 
     const Category = await category.findById(categoryID);
     // console.log("Found Category:", category);
-
-    
 
     if (!Category) {
       return res.status(404).json({ message: "Không tìm thấy danh mục" });
@@ -190,7 +190,7 @@ app.post(
       for (const file of files) {
         const { path } = file;
         const newpath = await uploader(path);
-        
+
         urls.push(newpath);
         fs.unlinkSync(path);
       }
@@ -250,7 +250,7 @@ app.delete("/category/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const del = await category.findByIdAndDelete(id);
-   
+
     res.json({
       message: "danh mục đã được xóa thành công",
       id: id,
@@ -266,7 +266,7 @@ app.delete("/product/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const test = await Product.findByIdAndDelete(id);
-   
+
     res.json({
       message: "Sản phẩm đã được xóa thành công",
       id: id,
@@ -279,22 +279,24 @@ app.delete("/product/:id", async (req: Request, res: Response) => {
 });
 
 app.post("/cart/add", async (req: Request, res: Response) => {
-  const { userId, productId, quantity } = req.body;
+  const { userId, items } = req.body;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     return res.status(400).json({ message: "Invalid userId format" });
   }
-  
+
+  // Assuming 'items' is an array, check each productId in the array
+  const { productId, quantity } = items[0]; // Assuming you are adding one product at a time
+
   if (!mongoose.Types.ObjectId.isValid(productId)) {
     return res.status(400).json({ message: "Invalid productId format" });
   }
+
   try {
     let cart = await Cart.findOne({ userId });
-    console.log(cart, "gio hang");
+    console.log(cart, "current cart");
 
-    
     if (cart) {
-      
       const productIndex = cart.items.findIndex(
         (p) => p.productId.toString() === productId
       );
@@ -307,7 +309,7 @@ app.post("/cart/add", async (req: Request, res: Response) => {
         cart.items.push({ productId, quantity });
       }
 
-     cart = await cart.save();
+      cart = await cart.save();
       return res.status(201).json(cart);
     } else {
       // If no cart exists, create a new cart
@@ -316,29 +318,26 @@ app.post("/cart/add", async (req: Request, res: Response) => {
         items: [{ productId, quantity }],
       });
 
-      console.log(newCart, "gio hang moi");
-      
+      console.log(newCart, "new cart");
       return res.status(201).json(newCart);
     }
-    
-    
-    
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error adding to cart" });
   }
 });
-
 app.post("/cart/remove", async (req: Request, res: Response) => {
   try {
     const { userId, productId } = req.body;
     const cart = await Cart.findOne({ user: userId });
-    
+
     if (!cart) {
       return res.status(404).json({ message: "Cart not found" });
     }
 
-    cart.items = cart.items.filter(item => item.productId.toString() !== productId);
+    cart.items = cart.items.filter(
+      (item) => item.productId.toString() !== productId
+    );
 
     await cart.save();
 
@@ -380,9 +379,6 @@ app.get("/user/:userId", async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
-
-
 
 app.listen(PORT, () => {
   console.log(`Server đang lắng nghe tại cổng ${PORT}`);
