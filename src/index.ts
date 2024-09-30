@@ -10,7 +10,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import category from "./danhmuc";
-import Cart, {ICart} from  "./cart"
+import Cart, { ICart } from "./cart";
 import user from "./user";
 var cors = require("cors");
 const fs = require("fs");
@@ -67,9 +67,11 @@ app.post("/login", async (req: Request, res: Response) => {
     });
     res.json({
       info: email,
+      id: user._id,
       token: token,
       expiresIn: process.env.EXPIRES_TOKEN,
     });
+    console.log(user._id, "id user");
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error logging in" });
@@ -140,13 +142,11 @@ app.post("/product/add", async (req: Request, res: Response) => {
   try {
     const { name, price, img, categoryID } = req.body;
     console.log(categoryID);
-  
+
     // console.log("Request Body:", req.body);
 
     const Category = await category.findById(categoryID);
     // console.log("Found Category:", category);
-
-    
 
     if (!Category) {
       return res.status(404).json({ message: "Không tìm thấy danh mục" });
@@ -190,7 +190,7 @@ app.post(
       for (const file of files) {
         const { path } = file;
         const newpath = await uploader(path);
-        
+
         urls.push(newpath);
         fs.unlinkSync(path);
       }
@@ -250,7 +250,7 @@ app.delete("/category/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const del = await category.findByIdAndDelete(id);
-   
+
     res.json({
       message: "danh mục đã được xóa thành công",
       id: id,
@@ -266,7 +266,7 @@ app.delete("/product/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const test = await Product.findByIdAndDelete(id);
-   
+
     res.json({
       message: "Sản phẩm đã được xóa thành công",
       id: id,
@@ -279,77 +279,90 @@ app.delete("/product/:id", async (req: Request, res: Response) => {
 });
 
 app.post("/cart/add", async (req: Request, res: Response) => {
-  const { userId, productId, quantity } = req.body;
+  const { userId, items } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid userId format" });
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ message: "ko được để trống elements" });
+  }
+  const { productId, name, price, img, quantity } = items[0];
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    return res.status(400).json({ message: "Invalid productId format" });
+  }
+  if (quantity <= 0) {
+    return res.status(400).json({ message: "Số lượng phải lớn hơn 0" });
+  }
 
   try {
     let cart = await Cart.findOne({ userId });
-    console.log(cart, "gio hang");
+
     if (cart) {
-      // If cart exists for the user, update the cart
+      
       const productIndex = cart.items.findIndex(
         (p) => p.productId.toString() === productId
       );
 
       if (productIndex > -1) {
+       
         let productItem = cart.items[productIndex];
-        productItem.quantity += quantity;
-        cart.items[productIndex] = productItem;
+        productItem.quantity += quantity; 
+        cart.items[productIndex] = productItem; 
       } else {
-        cart.items.push({ productId, quantity });
+        
+        cart.items.push({ productId, name, price, img, quantity });
       }
 
-     cart = await cart.save();
-      return res.status(201).json(cart);
+      cart = await cart.save();
+      return res.status(200).json(cart);
     } else {
-      // If no cart exists, create a new cart
+      
       const newCart = await Cart.create({
         userId,
-        items: [{ productId, quantity }],
+        items: [{ productId, name, price, img, quantity }], 
       });
 
-      console.log(newCart, "gio hang moi");
-      
       return res.status(201).json(newCart);
     }
-
-    
-    
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error adding to cart" });
   }
 });
 
-// app.post("/cart/remove", async (req: Request, res: Response) => {
-//   try {
-//     const { userId, productId } = req.body;
-//     const cart = await Cart.findOne({ user: userId });
-    
-//     if (!cart) {
-//       return res.status(404).json({ message: "Cart not found" });
-//     }
+app.post("/cart/remove", async (req: Request, res: Response) => {
+  try {
+    const { userId, productId } = req.body;
+    const cart = await Cart.findOne({ user: userId });
 
-//     // Remove the product from the cart's items array
-//     cart.items = cart.items.filter(item => item.product.toString() !== productId);
+    if (!cart) {
+      return res.status(404).json({ message: "Cart not found" });
+    }
 
-//     await cart.save();
+    cart.items = cart.items.filter(
+      (item) => item.productId.toString() !== productId
+    );
 
-//     res.json({ message: "Product removed from cart", cart });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: "Internal server error" });
-//   }
-// });
+    await cart.save();
+
+    res.json({ message: "Product removed from cart", cart });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 app.get("/cart/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     console.log(`Fetching cart for userId: ${id}`);
-    const giohang = await Cart.findOne({ userId: id }).populate("items.product");
+    const giohang = await Cart.findOne({ userId: id }).populate("items");
     console.log(`Cart fetched:`, giohang);
 
     if (!giohang) {
-      return res.status(404).json({ message: "Cart not found" });
+      return res.status(404).json({ message: "Cart is Empty", isEmpty : true });
     }
 
     res.json(giohang);
@@ -372,9 +385,6 @@ app.get("/user/:userId", async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
-
-
 
 app.listen(PORT, () => {
   console.log(`Server đang lắng nghe tại cổng ${PORT}`);
