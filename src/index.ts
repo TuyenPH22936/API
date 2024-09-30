@@ -285,40 +285,45 @@ app.post("/cart/add", async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Invalid userId format" });
   }
 
-  // Assuming 'items' is an array, check each productId in the array
-  const { productId, quantity } = items[0]; // Assuming you are adding one product at a time
-
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ message: "ko được để trống elements" });
+  }
+  const { productId, name, price, img, quantity } = items[0];
   if (!mongoose.Types.ObjectId.isValid(productId)) {
     return res.status(400).json({ message: "Invalid productId format" });
+  }
+  if (quantity <= 0) {
+    return res.status(400).json({ message: "Số lượng phải lớn hơn 0" });
   }
 
   try {
     let cart = await Cart.findOne({ userId });
-    console.log(cart, "current cart");
 
     if (cart) {
+      
       const productIndex = cart.items.findIndex(
         (p) => p.productId.toString() === productId
       );
 
       if (productIndex > -1) {
+       
         let productItem = cart.items[productIndex];
-        productItem.quantity += quantity;
-        cart.items[productIndex] = productItem;
+        productItem.quantity += quantity; 
+        cart.items[productIndex] = productItem; 
       } else {
-        cart.items.push({ productId, quantity });
+        
+        cart.items.push({ productId, name, price, img, quantity });
       }
 
       cart = await cart.save();
-      return res.status(201).json(cart);
+      return res.status(200).json(cart);
     } else {
-      // If no cart exists, create a new cart
+      
       const newCart = await Cart.create({
         userId,
-        items: [{ productId, quantity }],
+        items: [{ productId, name, price, img, quantity }], 
       });
 
-      console.log(newCart, "new cart");
       return res.status(201).json(newCart);
     }
   } catch (error) {
@@ -326,6 +331,7 @@ app.post("/cart/add", async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error adding to cart" });
   }
 });
+
 app.post("/cart/remove", async (req: Request, res: Response) => {
   try {
     const { userId, productId } = req.body;
@@ -356,7 +362,7 @@ app.get("/cart/:id", async (req: Request, res: Response) => {
     console.log(`Cart fetched:`, giohang);
 
     if (!giohang) {
-      return res.status(404).json({ message: "Cart not found" });
+      return res.status(404).json({ message: "Cart is Empty", isEmpty : true });
     }
 
     res.json(giohang);
