@@ -332,24 +332,36 @@ app.post("/cart/add", async (req: Request, res: Response) => {
   }
 });
 
-app.post("/cart/remove", async (req: Request, res: Response) => {
-  try {
-    const { userId, productId } = req.body;
-    const cart = await Cart.findOne({ user: userId });
+app.delete("/cart/remove", async (req: Request, res: Response) => {
+  const { userId, productId } = req.body;
 
-    if (!cart) {
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid userId format" });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    return res.status(400).json({ message: "Invalid productId format" });
+  }
+
+  try {
+    let cart = await Cart.findOne({ userId });
+    if (cart) {
+      const productIndex = cart.items.findIndex(
+        (item) => item.productId.toString() === productId
+      );
+
+      if (productIndex > -1) {
+        cart.items.splice(productIndex, 1); // Remove the item from the cart
+        await cart.save();
+        return res.status(200).json(cart);
+      } else {
+        return res.status(404).json({ message: "Product not found in cart" });
+      }
+    } else {
       return res.status(404).json({ message: "Cart not found" });
     }
-
-    cart.items = cart.items.filter(
-      (item) => item.productId.toString() !== productId
-    );
-
-    await cart.save();
-
-    res.json({ message: "Product removed from cart", cart });
   } catch (error) {
-    console.error(error);
+    console.error("Error removing item from cart:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
